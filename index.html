@@ -182,9 +182,10 @@
         // Projection CC45 (EPSG:3945)
         proj4.defs("EPSG:3945","+proj=lcc +lat_1=44.25 +lat_2=45.75 +lat_0=45 +lon_0=3 +x_0=1700000 +y_0=4200000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs");
 
+        // Modification des coordonnées : Le Taillan-Médoc (approx. 44.905, -0.670)
         const map = L.map('map', {
             zoomControl: false 
-        }).setView([44.878, -0.656], 15);
+        }).setView([44.905, -0.670], 14.5);
 
         L.control.zoom({ position: 'bottomright' }).addTo(map);
 
@@ -212,7 +213,7 @@
             if (ctxCoords) window.open(`https://www.google.com/maps/search/?api=1&query=${ctxCoords.lat},${ctxCoords.lng}`, '_blank');
         }
 
-        // Configuration des types basés sur la géométrie ou un champ 'type'
+        // Configuration des types basés sur la géométrie
         const typeConfigs = [
             { id: 'points', name: 'Points d\'aménagement', color: '#e67e22', geomType: 'Point' },
             { id: 'passages', name: 'Passages piétons', color: '#3498db', geomType: 'LineString' },
@@ -224,15 +225,19 @@
         function createPopup(feature) {
             const p = feature.properties;
             let html = `<div class="popup-container">`;
-            html += `<b>${p.description || p.Notes || 'Observation'}</b><br>`;
             
-            // Gestion de la photo
+            // Utilisation du champ 'info' comme demandé
+            html += `<b>${p.info || p.description || p.Notes || 'Information'}</b><br>`;
+            
+            // Gestion de la photo avec correction de l'extension (mise en minuscule)
             const photoUrl = p.photo || p.Photo;
             if (photoUrl) {
-                html += `<img src="${photoUrl}" class="popup-photo" alt="Photo terrain" onerror="this.src='https://via.placeholder.com/400x250?text=Image+non+disponible'">`;
+                // On passe toute l'URL en minuscule pour régler les conflits .PNG / .png
+                const lowerPhotoUrl = photoUrl.toLowerCase();
+                html += `<img src="${lowerPhotoUrl}" class="popup-photo" alt="Photo terrain" onerror="this.src='https://via.placeholder.com/400x250?text=Image+non+disponible'">`;
             }
 
-            // Lien vers la vue Google Maps précise (orientation)
+            // Lien vers la vue Google Maps précise
             const gMapUrl = p.google_maps_url || p.view_url || p.url_vue;
             if (gMapUrl) {
                 html += `<a href="${gMapUrl}" target="_blank" class="btn-view">Ouvrir la vue Street View précise ↗</a>`;
@@ -247,19 +252,15 @@
                 const response = await fetch('donnes.geojson');
                 const data = await response.json();
 
-                // On crée une couche pour chaque type défini dans typeConfigs
                 typeConfigs.forEach(config => {
                     const geoLayer = L.geoJSON(data, {
                         filter: (f) => {
-                            // On filtre par type de géométrie si c'est ce que tu as
-                            // Ou tu peux filtrer par un champ : return f.properties.categorie === config.id;
                             const gType = f.geometry.type;
                             if (config.geomType === 'Polygon') return gType === 'Polygon' || gType === 'MultiPolygon';
                             if (config.geomType === 'LineString') return gType === 'LineString' || gType === 'MultiLineString';
                             return gType === 'Point';
                         },
                         coordsToLatLng: (coords) => {
-                            // Gestion projection EPSG:3945
                             if (coords[0] > 100000) {
                                 var pt = proj4("EPSG:3945", "EPSG:4326", [coords[0], coords[1]]);
                                 return new L.LatLng(pt[1], pt[0]);
